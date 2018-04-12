@@ -273,6 +273,13 @@ def parse_args():
                         default=False,
                         help='download subtitles with the videos')
 
+    parser.add_argument('-e',
+                        '--english-only',
+                        dest='english_only',
+                        action='store_true',
+                        default=False,
+                        help='download English subtitles only')
+
     parser.add_argument('-o',
                         '--output-dir',
                         action='store',
@@ -778,10 +785,12 @@ def download_youtube_url(url, filename, headers, args):
 
 
     if args.subtitles:
-        # cmd.append('--all-subs')
-        cmd.append('--write-sub')
-        cmd.append('--srt-lang')
-        cmd.append('en') # For English only.
+        if args.english_only:  # For English only
+            cmd.append('--write-sub')
+            cmd.append('--srt-lang')
+            cmd.append('en')
+        else:
+            cmd.append('--all-subs')
     cmd.append('--no-playlist')
     cmd.extend(args.youtube_dl_options.split())
     cmd.append(url)
@@ -793,17 +802,22 @@ def download_subtitle(url, filename, headers, args):
     """
     Downloads the subtitle from the url and transforms it to the srt format
     """
-    # subs_string = edx_get_subtitle(url, headers)
-    # if subs_string:
-    #     full_filename = os.path.join(os.getcwd(), filename)
-    #     with open(full_filename, 'wb+') as f:
-    #         f.write(subs_string.encode('utf-8'))
-    try:
-        bin = 'curl'
-        cmd = [bin, '-f', url, '-o', filename]
-        execute_command(cmd, args)
-    except:
-        pass
+    if not args.english_only:
+        try:
+            subs_string = edx_get_subtitle(url, headers)
+            if subs_string:
+                full_filename = os.path.join(os.getcwd(), filename)
+                with open(full_filename, 'wb+') as f:
+                    f.write(subs_string.encode('utf-8'))
+        except:
+            pass
+    if not re.match('.*transcript/translation/([a-z]{2})', url):
+        try:
+            bin = 'curl'
+            cmd = [bin, '-f', url, '-o', filename]
+            execute_command(cmd, args)
+        except:
+            pass
 
 
 def skip_or_download(downloads, headers, args, f=download_url):
@@ -813,6 +827,8 @@ def skip_or_download(downloads, headers, args, f=download_url):
     """
     for url, filename in downloads.items():
         url = re.sub('transcript/translation/en', 'transcript/download', url)
+        if re.match('.*transcript/translation/([a-z]{2})', url) and f is not download_subtitle:
+            continue
         if os.path.exists(filename):
             logging.info('[skipping] %s => %s', url, filename)
             continue
